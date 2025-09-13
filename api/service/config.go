@@ -16,6 +16,7 @@ type APIConfig struct {
 	Enabled bool      `json:"enabled" yaml:"enabled"`
 	APIHost string    `json:"api_addr" yaml:"api-addr"`
 	APIPort int       `json:"api_port" yaml:"api-port"`
+	APIKey  string    `json:"api_key" yaml:"api-key"`
 	SSL     SSLConfig `json:"ssl" yaml:"ssl"`
 }
 

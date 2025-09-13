@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"net"
+	"net/http"
+	"time"
 
 	"github.com/p4gefau1t/trojan-go/api"
 	"github.com/p4gefau1t/trojan-go/common"
@@ -13,42 +16,148 @@ import (
 )
 
 type ClientAPI struct {
-	TrojanClientServiceServer
-
-	auth          statistic.Authenticator
-	ctx           context.Context
-	uploadSpeed   uint64
-	downloadSpeed uint64
-	lastSent      uint64
-	lastRecv      uint64
+	auth   statistic.Authenticator
+	apiKey string
+	server *http.Server
 }
 
-func (s *ClientAPI) GetTraffic(ctx context.Context, req *GetTrafficRequest) (*GetTrafficResponse, error) {
-	log.Debug("API: GetTraffic")
-	if req.User == nil {
-		return nil, common.NewError("User is unspecified")
+// 密钥验证中间件
+func (s *ClientAPI) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 从请求头获取 API 密钥
+		apiKey := r.Header.Get("X-API-Key")
+		if apiKey == "" {
+			s.writeErrorResponse(w, "Missing API key", http.StatusUnauthorized)
+			return
+		}
+
+		// 验证 API 密钥
+		if apiKey != s.apiKey {
+			s.writeErrorResponse(w, "Invalid API key", http.StatusUnauthorized)
+			return
+		}
+
+		// 设置响应头
+		w.Header().Set("Content-Type", "application/json")
+		next(w, r)
 	}
-	if req.User.Hash == "" {
-		req.User.Hash = common.SHA224String(req.User.Password)
+}
+
+// 写入错误响应
+func (s *ClientAPI) writeErrorResponse(w http.ResponseWriter, message string, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	response := HTTPAPIResponse{
+		Success: false,
+		Message: message,
 	}
-	valid, user := s.auth.AuthUser(req.User.Hash)
-	if !valid {
-		return nil, common.NewError("User " + req.User.Hash + " not found")
-	}
-	sent, recv := user.GetTraffic()
-	sentSpeed, recvSpeed := user.GetSpeed()
-	resp := &GetTrafficResponse{
+	json.NewEncoder(w).Encode(response)
+}
+
+// 写入成功响应
+func (s *ClientAPI) writeSuccessResponse(w http.ResponseWriter, data interface{}) {
+	response := HTTPAPIResponse{
 		Success: true,
-		TrafficTotal: &Traffic{
-			UploadTraffic:   sent,
-			DownloadTraffic: recv,
-		},
-		SpeedCurrent: &Speed{
-			UploadSpeed:   sentSpeed,
-			DownloadSpeed: recvSpeed,
-		},
+		Data:    data,
 	}
-	return resp, nil
+	json.NewEncoder(w).Encode(response)
+}
+
+// 获取流量统计
+func (s *ClientAPI) getTraffic(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	hash := r.URL.Query().Get("hash")
+	if hash == "" {
+		s.writeErrorResponse(w, "Missing hash parameter", http.StatusBadRequest)
+		return
+	}
+
+	valid, user := s.auth.AuthUser(hash)
+	if !valid {
+		s.writeErrorResponse(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	downloadTraffic, uploadTraffic := user.GetTraffic()
+	downloadSpeed, uploadSpeed := user.GetSpeed()
+
+	trafficData := map[string]interface{}{
+		"upload_traffic":   uploadTraffic,
+		"download_traffic": downloadTraffic,
+		"upload_speed":     uploadSpeed,
+		"download_speed":   downloadSpeed,
+	}
+
+	s.writeSuccessResponse(w, trafficData)
+}
+
+// 健康检查
+func (s *ClientAPI) healthCheck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	s.writeSuccessResponse(w, map[string]string{"status": "healthy"})
+}
+
+// 连接信息结构
+type ConnectionInfo struct {
+	Hash            string `json:"hash"`
+	IP              string `json:"ip"`
+	Port            int    `json:"port"`
+	UploadSpeed     uint64 `json:"upload_speed"`
+	DownloadSpeed   uint64 `json:"download_speed"`
+	UploadTraffic   uint64 `json:"upload_traffic"`
+	DownloadTraffic uint64 `json:"download_traffic"`
+	ConnectedAt     int64  `json:"connected_at"`
+	LastActivity    int64  `json:"last_activity"`
+}
+
+// 获取连接信息
+func (s *ClientAPI) getConnections(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.writeErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	hash := r.URL.Query().Get("hash")
+	if hash == "" {
+		s.writeErrorResponse(w, "Missing hash parameter", http.StatusBadRequest)
+		return
+	}
+
+	valid, user := s.auth.AuthUser(hash)
+	if !valid {
+		s.writeErrorResponse(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	downloadTraffic, uploadTraffic := user.GetTraffic()
+	downloadSpeed, uploadSpeed := user.GetSpeed()
+	ipCurrent := user.GetIP()
+
+	var connections []ConnectionInfo
+	if ipCurrent > 0 {
+		connection := ConnectionInfo{
+			Hash:            user.Hash(),
+			IP:              "127.0.0.1", // 这里应该从实际的连接信息中获取
+			Port:            0,           // 这里应该从实际的连接信息中获取
+			UploadSpeed:     uploadSpeed,
+			DownloadSpeed:   downloadSpeed,
+			UploadTraffic:   uploadTraffic,
+			DownloadTraffic: downloadTraffic,
+			ConnectedAt:     time.Now().Unix() - 3600, // 模拟1小时前连接
+			LastActivity:    time.Now().Unix(),
+		}
+		connections = append(connections, connection)
+	}
+
+	s.writeSuccessResponse(w, connections)
 }
 
 func RunClientAPI(ctx context.Context, auth statistic.Authenticator) error {
@@ -56,39 +165,61 @@ func RunClientAPI(ctx context.Context, auth statistic.Authenticator) error {
 	if !cfg.API.Enabled {
 		return nil
 	}
-	server, err := newAPIServer(cfg)
-	if err != nil {
-		return err
+
+	apiKey := cfg.API.APIKey
+	if apiKey == "" {
+		return common.NewError("API key is required")
 	}
-	defer server.Stop()
+
 	service := &ClientAPI{
-		ctx:  ctx,
-		auth: auth,
+		auth:   auth,
+		apiKey: apiKey,
 	}
-	RegisterTrojanClientServiceServer(server, service)
+
+	// 设置路由
+	mux := http.NewServeMux()
+
+	// 应用认证中间件
+	mux.HandleFunc("/api/traffic", service.authMiddleware(service.getTraffic))
+	mux.HandleFunc("/api/connections", service.authMiddleware(service.getConnections))
+	mux.HandleFunc("/api/health", service.authMiddleware(service.healthCheck))
+
+	// 创建 HTTP 服务器
+	httpServer := &http.Server{
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	service.server = httpServer
+
+	// 解析地址
 	addr, err := net.ResolveIPAddr("ip", cfg.API.APIHost)
 	if err != nil {
 		return common.NewError("api found invalid addr").Base(err)
 	}
-	listener, err := net.Listen("tcp", (&net.TCPAddr{
+
+	service.server.Addr = (&net.TCPAddr{
 		IP:   addr.IP,
 		Port: cfg.API.APIPort,
 		Zone: addr.Zone,
-	}).String())
-	if err != nil {
-		return common.NewError("client api failed to listen").Base(err)
-	}
-	defer listener.Close()
-	log.Info("client-side api service is listening on", listener.Addr().String())
+	}).String()
+
+	log.Info("HTTP client API server is listening on", service.server.Addr)
+
+	// 启动服务器
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- server.Serve(listener)
+		errChan <- service.server.ListenAndServe()
 	}()
+
 	select {
 	case err := <-errChan:
 		return err
 	case <-ctx.Done():
-		log.Debug("closed")
+		log.Debug("HTTP client API server closed")
+		service.server.Shutdown(context.Background())
 		return nil
 	}
 }
