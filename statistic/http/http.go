@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/p4gefau1t/trojan-go/common"
@@ -23,6 +24,12 @@ type AuthRequest struct {
 	Auth string `json:"auth"`
 	Addr string `json:"addr"`
 	Tx   int    `json:"tx"`
+}
+
+type AuthResponse struct {
+	Ok      bool   `json:"ok"`
+	Message string `json:"message",omitempty`
+	Error   string `json:"error",omitempty`
 }
 
 func (a *Authenticator) AuthUser(hash string) (bool, statistic.User) {
@@ -46,7 +53,19 @@ func (a *Authenticator) AuthUser(hash string) (bool, statistic.User) {
 		return false, nil
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Errorf("http authenticator failed to read body: %s", err)
+		return false, nil
+	}
+	var bodyJson AuthResponse
+	err = json.Unmarshal(body, &bodyJson)
+	if err != nil {
+		log.Errorf("http authenticator failed to unmarshal body: %s", err)
+		return false, nil
+	}
+	if !bodyJson.Ok {
+		log.Warnf("http authenticator failed to auth user: %s", hash)
 		return false, nil
 	}
 	err = a.AddUser(hash)
