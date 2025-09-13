@@ -182,9 +182,16 @@ func (a *Authenticator) AuthUser(hash string) (bool, statistic.User) {
 	return false, nil
 }
 
-func (a *Authenticator) AddUser(hash string) (statistic.User, error) {
+func (a *Authenticator) GetUser(hash string) (statistic.User, error) {
+	if user, found := a.Users.Load(hash); found {
+		return user.(*User), nil
+	}
+	return nil, common.NewError("hash " + hash + " not found")
+}
+
+func (a *Authenticator) AddUser(hash string) error {
 	if _, found := a.Users.Load(hash); found {
-		return nil, common.NewError("hash " + hash + " is already exist")
+		return common.NewError("hash " + hash + " is already exist")
 	}
 	ctx, cancel := context.WithCancel(a.Ctx)
 	meter := &User{
@@ -194,7 +201,7 @@ func (a *Authenticator) AddUser(hash string) (statistic.User, error) {
 	}
 	go meter.speedUpdater()
 	a.Users.Store(hash, meter)
-	return meter, nil
+	return nil
 }
 
 func (a *Authenticator) DelUser(hash string) error {

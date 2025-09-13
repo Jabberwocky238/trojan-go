@@ -49,8 +49,13 @@ func (a *Authenticator) AuthUser(hash string) (bool, statistic.User) {
 	if response.StatusCode != http.StatusOK {
 		return false, nil
 	}
-	user, err := a.AddUser(hash)
+	err = a.AddUser(hash)
 	if err != nil {
+		return false, nil
+	}
+	user, err := a.GetUser(hash)
+	if err != nil {
+		a.DelUser(hash)
 		return false, nil
 	}
 	return true, user

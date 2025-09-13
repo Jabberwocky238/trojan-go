@@ -38,7 +38,7 @@ type User interface {
 type Authenticator interface {
 	io.Closer
 	AuthUser(hash string) (valid bool, user User)
-	AddUser(hash string) (User, error)
+	AddUser(hash string) error
 	DelUser(hash string) error
 	ListUsers() []User
 }
