@@ -69,12 +69,15 @@ func (a *Authenticator) AuthUser(hash string) (bool, statistic.User) {
 		return false, nil
 	}
 	err = a.AddUser(hash)
-	if err != nil {
-		return false, nil
+	if err == memory.ErrorHashExist || err == nil {
+		user, err := a.GetUser(hash)
+		if err != nil {
+			return false, nil
+		}
+		return true, user
 	}
 	user, err := a.GetUser(hash)
 	if err != nil {
-		a.DelUser(hash)
 		return false, nil
 	}
 	return true, user

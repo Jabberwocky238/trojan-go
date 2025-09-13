@@ -175,6 +175,8 @@ type Authenticator struct {
 	Ctx   context.Context
 }
 
+var ErrorHashExist = common.NewError("hash is already exist")
+
 func (a *Authenticator) AuthUser(hash string) (bool, statistic.User) {
 	if user, found := a.Users.Load(hash); found {
 		return true, user.(*User)
@@ -191,7 +193,7 @@ func (a *Authenticator) GetUser(hash string) (statistic.User, error) {
 
 func (a *Authenticator) AddUser(hash string) error {
 	if _, found := a.Users.Load(hash); found {
-		return common.NewError("hash " + hash + " is already exist")
+		return ErrorHashExist
 	}
 	ctx, cancel := context.WithCancel(a.Ctx)
 	meter := &User{
