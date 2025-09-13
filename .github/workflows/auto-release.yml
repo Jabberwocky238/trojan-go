@@ -5,47 +5,32 @@ on:
     branches: [master, main]
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
+      - name: Install Go
+        uses: actions/setup-go@v2
         with:
-          go-version: '^1.17.1'
+          go-version: ^1.17.1
 
-      - name: Get version
-        id: version
-        run: |
-          VERSION="v$(date +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)"
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-      - name: Download data
+      - name: Set tag name
         run: |
-          wget https://github.com/v2fly/geoip/raw/release/geoip.dat
-          wget https://github.com/v2fly/domain-list-community/raw/release/dlc.dat -O geosite.dat
+          tag_name="v$(date +%Y%m%d%H%M%S)"
+          echo "TAG_NAME=${tag_name}" >> $GITHUB_ENV
+          echo "Tag: $tag_name"
 
       - name: Build
-        run: make release -j$(nproc)
-
-      - name: Create release
         run: |
-          RELEASE_NAME="trojan-go-$(git rev-parse --short HEAD)"
-          mkdir -p $RELEASE_NAME
-          cp build/* $RELEASE_NAME/ 2>/dev/null || true
-          cp *.dat $RELEASE_NAME/ 2>/dev/null || true
-          cp example/*.json $RELEASE_NAME/ 2>/dev/null || true
-          zip -r $RELEASE_NAME.zip $RELEASE_NAME/
-          
-          gh release create "${{ steps.version.outputs.VERSION }}" \
-            --title "Release ${{ steps.version.outputs.VERSION }}" \
-            --notes "Auto release from ${{ github.sha }}" \
-            --latest \
-            $RELEASE_NAME.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          make release -j$(nproc)
+
+      - name: Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ env.TAG_NAME }}
+          file: ./trojan-go-*.zip
+          file_glob: true
+          prerelease: true
