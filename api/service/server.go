@@ -45,11 +45,6 @@ func (s *ServerAPI) getTraffics(w http.ResponseWriter, r *http.Request) {
 	}
 	// https://t43.165.190.29.radio238.com/
 	isClear := r.URL.Query().Get("clear")
-	if isClear == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
 	users := s.auth.ListUsers()
 	trafficData := make(map[string]interface{})
 	for _, user := range users {
