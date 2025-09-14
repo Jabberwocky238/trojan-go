@@ -32,6 +32,7 @@ func (s *ServerAPI) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		// 设置响应头
 		w.Header().Set("Content-Type", "application/json")
+		log.Debugf("request for %s, apiKey: %s", r.URL.Path, apiKey)
 		next(w, r)
 	}
 }
@@ -42,7 +43,7 @@ func (s *ServerAPI) getTraffics(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-
+	// https://t43.165.190.29.radio238.com/
 	isClear := r.URL.Query().Get("clear")
 	if isClear == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -64,7 +65,7 @@ func (s *ServerAPI) getTraffics(w http.ResponseWriter, r *http.Request) {
 			user.ResetTraffic()
 		}
 	}
-
+	log.Infof("trafficData: %v", trafficData)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(trafficData)
 }
