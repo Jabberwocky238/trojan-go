@@ -19,7 +19,7 @@ func TestMemoryAuth(t *testing.T) {
 	auth, err := NewAuthenticator(ctx)
 	common.Must(err)
 	auth.AddUser("user1")
-	valid, user := auth.AuthUser("user1")
+	valid, user := auth.AuthUser("user1", "127.0.0.1:8080")
 	if !valid {
 		t.Fatal("add, auth")
 	}
@@ -103,12 +103,12 @@ func TestMemoryAuth(t *testing.T) {
 	}
 
 	auth.AddUser("user2")
-	valid, _ = auth.AuthUser("user2")
+	valid, _ = auth.AuthUser("user2", "127.0.0.1:8080")
 	if !valid {
 		t.Fatal()
 	}
 	auth.DelUser("user2")
-	valid, _ = auth.AuthUser("user2")
+	valid, _ = auth.AuthUser("user2", "127.0.0.1:8080")
 	if valid {
 		t.Fatal()
 	}

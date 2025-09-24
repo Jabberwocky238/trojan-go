@@ -27,16 +27,15 @@ type AuthRequest struct {
 }
 
 type AuthResponse struct {
-	Ok      bool   `json:"ok"`
-	Message string `json:"message",omitempty`
-	Error   string `json:"error",omitempty`
+	Ok bool   `json:"ok"`
+	Id string `json:"id"`
 }
 
-func (a *Authenticator) AuthUser(hash string) (bool, statistic.User) {
+func (a *Authenticator) AuthUser(hash string, addr string) (bool, statistic.User) {
 	// requset apiURL
 	rawRequest := AuthRequest{
 		Auth: hash,
-		Addr: "0.0.0.0",
+		Addr: addr,
 		Tx:   0,
 	}
 	requestBody, err := json.Marshal(rawRequest)

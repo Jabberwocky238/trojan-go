@@ -70,7 +70,7 @@ func (c *InboundConn) Auth() error {
 		return common.NewError("failed to read hash").Base(err)
 	}
 
-	valid, user := c.auth.AuthUser(string(userHash[:]))
+	valid, user := c.auth.AuthUser(string(userHash[:]), c.Conn.RemoteAddr().String())
 	if !valid {
 		return common.NewError("invalid hash:" + string(userHash[:]))
 	}
@@ -81,7 +81,6 @@ func (c *InboundConn) Auth() error {
 	if err != nil {
 		return common.NewError("failed to parse host:" + c.Conn.RemoteAddr().String()).Base(err)
 	}
-
 	c.ip = ip
 	ok := user.AddIP(ip)
 	if !ok {
