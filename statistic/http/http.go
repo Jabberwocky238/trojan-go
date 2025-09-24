@@ -67,15 +67,15 @@ func (a *Authenticator) AuthUser(hash string, addr string) (bool, statistic.User
 		log.Warnf("http authenticator failed to auth user: %s", hash)
 		return false, nil
 	}
-	err = a.AddUser(hash)
+	err = a.AddUser(bodyJson.Id)
 	if err == memory.ErrorHashExist || err == nil {
-		user, err := a.GetUser(hash)
+		user, err := a.GetUser(bodyJson.Id)
 		if err != nil {
 			return false, nil
 		}
 		return true, user
 	}
-	user, err := a.GetUser(hash)
+	user, err := a.GetUser(bodyJson.Id)
 	if err != nil {
 		return false, nil
 	}
