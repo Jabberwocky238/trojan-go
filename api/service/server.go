@@ -43,8 +43,15 @@ func (s *ServerAPI) getTraffics(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+
 	// https://t43.165.190.29.radio238.com/
-	isClear := r.URL.Query().Get("clear")
+	query := r.URL.Query()
+	var isClear bool
+	if query.Has("clear") {
+		isClear = query.Get("clear") == "1"
+	} else {
+		isClear = false
+	}
 	users := s.auth.ListUsers()
 	trafficData := make(map[string]interface{})
 	for _, user := range users {
@@ -55,7 +62,7 @@ func (s *ServerAPI) getTraffics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if isClear == "1" {
+	if isClear {
 		for _, user := range users {
 			user.ResetTraffic()
 		}
