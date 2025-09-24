@@ -37,10 +37,7 @@ jobs:
 
       - name: Clean up old releases
         run: |
-          # 获取所有预发布版本，按创建时间排序，保留最新的15个
           releases=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.prerelease == true) | .id' | sort -nr | tail -n +16)
-          
-          # 删除多余的版本
           for release_id in $releases; do
             echo "删除旧版本: $release_id"
             gh api -X DELETE repos/${{ github.repository }}/releases/$release_id
