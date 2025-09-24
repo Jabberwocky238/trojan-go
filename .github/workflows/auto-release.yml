@@ -2,7 +2,7 @@ name: Auto Release
 
 on:
   push:
-    branches: [master, main]
+    branches: [jw]
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
 
       - name: Set tag name
         run: |
-          tag_name="v$(date +%Y%m%d%H%M%S)"
+          tag_name="v$(date +%Y%m%d_%H%M%S)"
           echo "TAG_NAME=${tag_name}" >> $GITHUB_ENV
           echo "Tag: $tag_name"
 
@@ -34,3 +34,16 @@ jobs:
           file: ./trojan-go-*.zip
           file_glob: true
           prerelease: true
+
+      - name: Clean up old releases
+        run: |
+          # 获取所有预发布版本，按创建时间排序，保留最新的15个
+          releases=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.prerelease == true) | .id' | sort -nr | tail -n +16)
+          
+          # 删除多余的版本
+          for release_id in $releases; do
+            echo "删除旧版本: $release_id"
+            gh api -X DELETE repos/${{ github.repository }}/releases/$release_id
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
